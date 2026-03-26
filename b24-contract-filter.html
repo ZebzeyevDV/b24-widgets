@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Фильтр договоров по компании</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 12px; background: #fff; color: #333; }
+        .widget-title { font-size: 13px; font-weight: 600; color: #525c69; margin-bottom: 8px; }
+        .status { font-size: 12px; color: #999; margin-bottom: 8px; }
+        .status.error { color: #e74c3c; }
+        .status.success { color: #2ecc71; }
+        .contract-list { list-style: none; max-height: 300px; overflow-y: auto; }
+        .contract-item { display: flex; align-items: center; padding: 8px 10px; border: 1px solid #e8e8e8; border-radius: 6px; margin-bottom: 6px; cursor: pointer; transition: all 0.15s; font-size: 13px; }
+        .contract-item:hover { background: #f0f4ff; border-color: #5b9bd5; }
+        .contract-item.selected { background: #e8f5e9; border-color: #4caf50; }
+        .contract-name { flex: 1; font-weight: 500; }
+        .contract-dates { font-size: 11px; color: #888; white-space: nowrap; margin-left: 8px; }
+        .contract-id { font-size: 11px; color: #aaa; margin-right: 8px; min-width: 30px; }
+        .empty-state { text-align: center; padding: 20px; color: #999; font-size: 13px; }
+        .loading { text-align: center; padding: 20px; }
+        .loading::after { content: ''; display: inline-block; width: 20px; height: 20px; border: 2px solid #ddd; border-top-color: #5b9bd5; border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .btn { display: inline-block; padding: 6px 16px; font-size: 12px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background: #4caf50; color: #fff; }
+        .btn-primary:hover { background: #43a047; }
+        .btn-refresh { background: #e0e0e0; color: #333; margin-left: 8px; }
+        .btn-refresh:hover { background: #d0d0d0; }
+        .actions { margin-top: 8px; display: flex; align-items: center; }
+        .info { font-size: 11px; color: #999; margin-top: 6px; }
+    </style>
+</head>
+<body>
+
+<div class="widget-title">📋 Договора компании</div>
+<div id="status" class="status">Ожидание данных...</div>
+<div id="content"></div>
+<div id="actions" class="actions" style="display:none;">
+    <button class="btn btn-refresh" onclick="refresh()">🔄 Обновить</button>
+</div>
+<div class="info" id="info"></div>
+
+<script src="https://api.bitrix24.com/api/v1/"></script>
+<script>
+// ===== КОНФИГУРАЦИЯ =====
+const CONFIG = {
+    // EntityTypeId смарт-процесса СПИСОК: Договоров
+    contractListTypeId: 1068,
+    // EntityTypeId смарт-процесса Заявка на оплату
+    paymentRequestTypeId: 1064,
+    // Поле компании в СПИСКЕ договоров
+    contractCompanyField: 'companyId',
+    // Поле привязки к СПИСКУ в Заявке на оплату
+    paymentContractField: 'parentId1068',
+    // Домен портала
+    portalDomain: 'b24.tsdc.kz'
+};
+
+let currentCompanyId = null;
+let currentItemId = null;
+let selectedContractId = null;
+
+// Инициализация BX24 JS SDK
+BX24.init(function() {
+    console.log('BX24 SDK initialized');
+    
+    // Получаем данные текущего элемента
+    var placement = BX24.placement.info();
+    console.log('Placement:', JSON.stringify(placement));
+    
+    if (placement && placement.options) {
+        currentItemId = placement.options.ID || placement.options.id;
+        loadCurrentItem();
+    } else {
+        setStatus('Виджет работает только в карточке Заявки на оплату', 'error');
+    }
+});
+
+function loadCurrentItem() {
+    setStatus('Загрузка данных заявки...');
+    
+    BX24.callMethod('crm.item.get', {
+        entityTypeId: CONFIG.paymentRequestTypeId,
+        id: currentItemId
+    }, function(result) {
+        if (result.error()) {
+            setStatus('Ошибка: ' + result.error(), 'error');
+            return;
+        }
+        
+        var item = result.data().item;
+        currentCompanyId = item.companyId;
+        selectedContractId = item[CONFIG.paymentContractField];
+        
+        if (!currentCompanyId) {
+            setStatus('Сначала выберите компанию в заявке', 'error');
+            document.getElementById('content').innerHTML = '<div class="empty-state">Выберите компанию (контрагента) в карточке заявки, сохраните и обновите виджет.</div>';
+            document.getElementById('actions').style.display = 'flex';
+            return;
+        }
+        
+        loadContracts(currentCompanyId);
+    });
+}
+
+function loadContracts(companyId) {
+    setStatus('Загрузка договоров...');
+    
+    BX24.callMethod('crm.item.list', {
+        entityTypeId: CONFIG.contractListTypeId,
+        filter: {
+            'companyId': companyId
+        },
+        select: ['id', 'title', 'begindate', 'closedate', 'stageId']
+    }, function(result) {
+        if (result.error()) {
+            setStatus('Ошибка загрузки: ' + result.error(), 'error');
+            return;
+        }
+        
+        var items = result.data().items || [];
+        renderContracts(items);
+    });
+}
+
+function renderContracts(items) {
+    var content = document.getElementById('content');
+    document.getElementById('actions').style.display = 'flex';
+    
+    if (items.length === 0) {
+        setStatus('Договоров не найдено', 'error');
+        content.innerHTML = '<div class="empty-state">У выбранной компании нет договоров в СПИСКЕ.</div>';
+        return;
+    }
+    
+    setStatus('Найдено договоров: ' + items.length, 'success');
+    
+    var html = '<ul class="contract-list">';
+    items.forEach(function(item) {
+        var isSelected = selectedContractId && (String(selectedContractId) === String(item.id));
+        var beginDate = item.begindate ? formatDate(item.begindate) : '—';
+        var closeDate = item.closedate ? formatDate(item.closedate) : '—';
+        
+        html += '<li class="contract-item' + (isSelected ? ' selected' : '') + '" onclick="selectContract(' + item.id + ', this)" data-id="' + item.id + '">';
+        html += '<span class="contract-id">#' + item.id + '</span>';
+        html += '<span class="contract-name">' + escapeHtml(item.title) + '</span>';
+        html += '<span class="contract-dates">' + beginDate + ' — ' + closeDate + '</span>';
+        html += '</li>';
+    });
+    html += '</ul>';
+    
+    content.innerHTML = html;
+    document.getElementById('info').textContent = 'Нажмите на договор чтобы привязать к заявке';
+}
+
+function selectContract(contractId, element) {
+    setStatus('Привязка договора...');
+    
+    var updateData = {
+        entityTypeId: CONFIG.paymentRequestTypeId,
+        id: currentItemId,
+        fields: {}
+    };
+    updateData.fields[CONFIG.paymentContractField] = contractId;
+    
+    BX24.callMethod('crm.item.update', updateData, function(result) {
+        if (result.error()) {
+            setStatus('Ошибка привязки: ' + result.error(), 'error');
+            return;
+        }
+        
+        selectedContractId = contractId;
+        
+        // Обновить визуал
+        document.querySelectorAll('.contract-item').forEach(function(el) {
+            el.classList.remove('selected');
+        });
+        element.classList.add('selected');
+        
+        setStatus('✅ Договор #' + contractId + ' привязан к заявке!', 'success');
+        document.getElementById('info').textContent = 'Договор привязан. Обновите карточку для отображения.';
+    });
+}
+
+function refresh() {
+    loadCurrentItem();
+}
+
+function setStatus(text, type) {
+    var el = document.getElementById('status');
+    el.textContent = text;
+    el.className = 'status' + (type ? ' ' + type : '');
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '—';
+    var d = new Date(dateStr);
+    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+
+</body>
+</html>
