@@ -3,100 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Фильтр договоров по компании</title>
+    <title>Договора компании</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 12px; background: #fff; color: #333; }
-        .widget-title { font-size: 13px; font-weight: 600; color: #525c69; margin-bottom: 8px; }
-        .status { font-size: 12px; color: #999; margin-bottom: 8px; }
-        .status.error { color: #e74c3c; }
-        .status.success { color: #2ecc71; }
-        .contract-list { list-style: none; max-height: 300px; overflow-y: auto; }
-        .contract-item { display: flex; align-items: center; padding: 8px 10px; border: 1px solid #e8e8e8; border-radius: 6px; margin-bottom: 6px; cursor: pointer; transition: all 0.15s; font-size: 13px; }
-        .contract-item:hover { background: #f0f4ff; border-color: #5b9bd5; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 12px; background: #fff; color: #333; font-size: 13px; }
+        .widget-title { font-size: 14px; font-weight: 600; color: #525c69; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+        .status { font-size: 12px; color: #999; margin-bottom: 10px; padding: 6px 10px; border-radius: 4px; background: #f8f8f8; }
+        .status.error { color: #e74c3c; background: #fdf0ef; }
+        .status.success { color: #2e7d32; background: #e8f5e9; }
+        .status.loading { color: #1565c0; background: #e3f2fd; }
+        .contract-list { list-style: none; max-height: 350px; overflow-y: auto; }
+        .contract-item { display: flex; align-items: center; padding: 10px 12px; border: 1px solid #e8e8e8; border-radius: 8px; margin-bottom: 6px; cursor: pointer; transition: all 0.15s; }
+        .contract-item:hover { background: #f0f4ff; border-color: #5b9bd5; transform: translateX(2px); }
         .contract-item.selected { background: #e8f5e9; border-color: #4caf50; }
-        .contract-name { flex: 1; font-weight: 500; }
-        .contract-dates { font-size: 11px; color: #888; white-space: nowrap; margin-left: 8px; }
-        .contract-id { font-size: 11px; color: #aaa; margin-right: 8px; min-width: 30px; }
-        .empty-state { text-align: center; padding: 20px; color: #999; font-size: 13px; }
-        .loading { text-align: center; padding: 20px; }
-        .loading::after { content: ''; display: inline-block; width: 20px; height: 20px; border: 2px solid #ddd; border-top-color: #5b9bd5; border-radius: 50%; animation: spin 0.6s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .btn { display: inline-block; padding: 6px 16px; font-size: 12px; border: none; border-radius: 4px; cursor: pointer; }
-        .btn-primary { background: #4caf50; color: #fff; }
+        .contract-item.selected::after { content: '\2713'; margin-left: auto; color: #4caf50; font-weight: bold; font-size: 16px; }
+        .contract-info { flex: 1; }
+        .contract-name { font-weight: 500; color: #333; margin-bottom: 2px; }
+        .contract-dates { font-size: 11px; color: #888; }
+        .contract-id { font-size: 11px; color: #aaa; background: #f5f5f5; padding: 2px 6px; border-radius: 3px; margin-right: 10px; }
+        .empty-state { text-align: center; padding: 30px 10px; color: #999; }
+        .empty-state .icon { font-size: 32px; margin-bottom: 8px; }
+        .btn { display: inline-flex; align-items: center; gap: 4px; padding: 7px 14px; font-size: 12px; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; background: #fff; color: #333; transition: all 0.15s; }
+        .btn:hover { background: #f5f5f5; border-color: #bbb; }
+        .btn-primary { background: #4caf50; color: #fff; border-color: #4caf50; }
         .btn-primary:hover { background: #43a047; }
-        .btn-refresh { background: #e0e0e0; color: #333; margin-left: 8px; }
-        .btn-refresh:hover { background: #d0d0d0; }
-        .actions { margin-top: 8px; display: flex; align-items: center; }
-        .info { font-size: 11px; color: #999; margin-top: 6px; }
+        .actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+        .info { font-size: 11px; color: #aaa; margin-top: 8px; line-height: 1.4; }
+        .setup-form { background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; margin-top: 10px; }
+        .setup-form label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; margin-top: 10px; }
+        .setup-form label:first-child { margin-top: 0; }
+        .setup-form input { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; }
+        .setup-form input:focus { outline: none; border-color: #5b9bd5; }
+        .setup-form .hint { font-size: 11px; color: #999; margin-top: 2px; }
     </style>
 </head>
 <body>
 
-<div class="widget-title">📋 Договора компании</div>
-<div id="status" class="status">Ожидание данных...</div>
+<div class="widget-title">&#128203; Договора компании</div>
+<div id="status" class="status loading">Инициализация...</div>
 <div id="content"></div>
-<div id="actions" class="actions" style="display:none;">
-    <button class="btn btn-refresh" onclick="refresh()">🔄 Обновить</button>
-</div>
+<div id="actions" class="actions" style="display:none;"></div>
 <div class="info" id="info"></div>
 
-<script src="https://api.bitrix24.com/api/v1/"></script>
 <script>
 // ===== КОНФИГУРАЦИЯ =====
-const CONFIG = {
-    // EntityTypeId смарт-процесса СПИСОК: Договоров
+var CONFIG = {
     contractListTypeId: 1068,
-    // EntityTypeId смарт-процесса Заявка на оплату
     paymentRequestTypeId: 1064,
-    // Поле компании в СПИСКЕ договоров
-    contractCompanyField: 'companyId',
-    // Поле привязки к СПИСКУ в Заявке на оплату
     paymentContractField: 'parentId1068',
-    // Домен портала
-    portalDomain: 'b24.tsdc.kz'
+    webhookUrl: 'https://b24.tsdc.kz/rest/268/hvryb6o7aa22u5qg/'
 };
 
-let currentCompanyId = null;
-let currentItemId = null;
-let selectedContractId = null;
+var currentCompanyId = null;
+var currentItemId = null;
+var selectedContractId = null;
 
-// Инициализация BX24 JS SDK
-BX24.init(function() {
-    console.log('BX24 SDK initialized');
+// ===== ИНИЦИАЛИЗАЦИЯ =====
+function init() {
+    var params = getQueryParams();
     
-    // Получаем данные текущего элемента
-    var placement = BX24.placement.info();
-    console.log('Placement:', JSON.stringify(placement));
-    
-    if (placement && placement.options) {
-        currentItemId = placement.options.ID || placement.options.id;
-        loadCurrentItem();
+    if (params.item_id) {
+        currentItemId = parseInt(params.item_id);
+        loadItem(currentItemId);
     } else {
-        setStatus('Виджет работает только в карточке Заявки на оплату', 'error');
+        showManualInput();
     }
-});
+}
 
-function loadCurrentItem() {
-    setStatus('Загрузка данных заявки...');
+// ===== ЗАГРУЗКА ЗАЯВКИ =====
+function loadItem(itemId) {
+    setStatus('Загрузка заявки #' + itemId + '...', 'loading');
     
-    BX24.callMethod('crm.item.get', {
+    callRest('crm.item.get', {
         entityTypeId: CONFIG.paymentRequestTypeId,
-        id: currentItemId
-    }, function(result) {
-        if (result.error()) {
-            setStatus('Ошибка: ' + result.error(), 'error');
+        id: itemId
+    }, function(data) {
+        if (data.error) {
+            setStatus('Ошибка: ' + (data.error_description || data.error), 'error');
             return;
         }
-        
-        var item = result.data().item;
+        var item = data.result.item;
         currentCompanyId = item.companyId;
         selectedContractId = item[CONFIG.paymentContractField];
         
         if (!currentCompanyId) {
-            setStatus('Сначала выберите компанию в заявке', 'error');
-            document.getElementById('content').innerHTML = '<div class="empty-state">Выберите компанию (контрагента) в карточке заявки, сохраните и обновите виджет.</div>';
-            document.getElementById('actions').style.display = 'flex';
+            setStatus('Компания не выбрана в заявке', 'error');
+            document.getElementById('content').innerHTML = 
+                '<div class="empty-state">' +
+                '<div class="icon">&#127970;</div>' +
+                'Сначала выберите компанию в карточке заявки и сохраните.' +
+                '</div>';
+            showActions();
             return;
         }
         
@@ -104,87 +101,165 @@ function loadCurrentItem() {
     });
 }
 
+// ===== ЗАГРУЗКА ДОГОВОРОВ =====
 function loadContracts(companyId) {
-    setStatus('Загрузка договоров...');
+    setStatus('Поиск договоров компании...', 'loading');
     
-    BX24.callMethod('crm.item.list', {
+    callRest('crm.item.list', {
         entityTypeId: CONFIG.contractListTypeId,
-        filter: {
-            'companyId': companyId
-        },
+        filter: { 'companyId': companyId },
         select: ['id', 'title', 'begindate', 'closedate', 'stageId']
-    }, function(result) {
-        if (result.error()) {
-            setStatus('Ошибка загрузки: ' + result.error(), 'error');
+    }, function(data) {
+        if (data.error) {
+            setStatus('Ошибка: ' + (data.error_description || data.error), 'error');
             return;
         }
-        
-        var items = result.data().items || [];
-        renderContracts(items);
+        renderContracts(data.result.items || []);
     });
 }
 
+// ===== ОТОБРАЖЕНИЕ =====
 function renderContracts(items) {
     var content = document.getElementById('content');
-    document.getElementById('actions').style.display = 'flex';
+    showActions();
     
     if (items.length === 0) {
         setStatus('Договоров не найдено', 'error');
-        content.innerHTML = '<div class="empty-state">У выбранной компании нет договоров в СПИСКЕ.</div>';
+        content.innerHTML = 
+            '<div class="empty-state">' +
+            '<div class="icon">&#128196;</div>' +
+            'У выбранной компании нет договоров в СПИСКЕ.' +
+            '</div>';
         return;
     }
     
-    setStatus('Найдено договоров: ' + items.length, 'success');
+    setStatus('Найдено: ' + items.length + ' договор(ов)', 'success');
     
     var html = '<ul class="contract-list">';
-    items.forEach(function(item) {
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i];
         var isSelected = selectedContractId && (String(selectedContractId) === String(item.id));
-        var beginDate = item.begindate ? formatDate(item.begindate) : '—';
-        var closeDate = item.closedate ? formatDate(item.closedate) : '—';
+        var beginDate = item.begindate ? formatDate(item.begindate) : '\u2014';
+        var closeDate = item.closedate ? formatDate(item.closedate) : '\u2014';
         
-        html += '<li class="contract-item' + (isSelected ? ' selected' : '') + '" onclick="selectContract(' + item.id + ', this)" data-id="' + item.id + '">';
-        html += '<span class="contract-id">#' + item.id + '</span>';
-        html += '<span class="contract-name">' + escapeHtml(item.title) + '</span>';
-        html += '<span class="contract-dates">' + beginDate + ' — ' + closeDate + '</span>';
-        html += '</li>';
-    });
+        html += '<li class="contract-item' + (isSelected ? ' selected' : '') + '" ' +
+                'onclick="selectContract(' + item.id + ', this)" data-id="' + item.id + '">' +
+                '<span class="contract-id">#' + item.id + '</span>' +
+                '<div class="contract-info">' +
+                '<div class="contract-name">' + escapeHtml(item.title) + '</div>' +
+                '<div class="contract-dates">&#128197; ' + beginDate + ' \u2014 ' + closeDate + '</div>' +
+                '</div>' +
+                '</li>';
+    }
     html += '</ul>';
     
     content.innerHTML = html;
-    document.getElementById('info').textContent = 'Нажмите на договор чтобы привязать к заявке';
+    document.getElementById('info').textContent = 'Нажмите на договор, чтобы привязать к заявке';
 }
 
+// ===== ПРИВЯЗКА ДОГОВОРА =====
 function selectContract(contractId, element) {
-    setStatus('Привязка договора...');
+    if (!currentItemId) {
+        setStatus('Не удалось определить ID заявки', 'error');
+        return;
+    }
     
-    var updateData = {
+    setStatus('Привязка договора #' + contractId + '...', 'loading');
+    
+    var fields = {};
+    fields[CONFIG.paymentContractField] = contractId;
+    
+    callRest('crm.item.update', {
         entityTypeId: CONFIG.paymentRequestTypeId,
         id: currentItemId,
-        fields: {}
-    };
-    updateData.fields[CONFIG.paymentContractField] = contractId;
-    
-    BX24.callMethod('crm.item.update', updateData, function(result) {
-        if (result.error()) {
-            setStatus('Ошибка привязки: ' + result.error(), 'error');
+        fields: fields
+    }, function(data) {
+        if (data.error) {
+            setStatus('Ошибка: ' + (data.error_description || data.error), 'error');
             return;
         }
         
         selectedContractId = contractId;
         
-        // Обновить визуал
-        document.querySelectorAll('.contract-item').forEach(function(el) {
-            el.classList.remove('selected');
-        });
+        var items = document.querySelectorAll('.contract-item');
+        for (var i = 0; i < items.length; i++) {
+            items[i].classList.remove('selected');
+        }
         element.classList.add('selected');
         
-        setStatus('✅ Договор #' + contractId + ' привязан к заявке!', 'success');
-        document.getElementById('info').textContent = 'Договор привязан. Обновите карточку для отображения.';
+        setStatus('\u2705 Договор #' + contractId + ' привязан!', 'success');
+        document.getElementById('info').textContent = 'Обновите карточку заявки (F5) для отображения привязки.';
     });
 }
 
+// ===== РУЧНОЙ ВВОД =====
+function showManualInput() {
+    setStatus('Введите номер заявки на оплату', '');
+    document.getElementById('content').innerHTML = 
+        '<div class="setup-form">' +
+        '<label>ID заявки на оплату:</label>' +
+        '<input type="number" id="itemIdInput" placeholder="Например: 8" onkeypress="if(event.key===\'Enter\')manualLoad()" />' +
+        '<div class="hint">ID видно в URL карточки: /details/<b>8</b>/</div>' +
+        '<div style="margin-top: 12px;">' +
+        '<button class="btn btn-primary" onclick="manualLoad()">&#128269; Найти договора</button>' +
+        '</div>' +
+        '</div>';
+}
+
+function manualLoad() {
+    var input = document.getElementById('itemIdInput');
+    if (input && input.value) {
+        currentItemId = parseInt(input.value);
+        // Обновляем URL без перезагрузки (для удобства)
+        if (window.history && window.history.replaceState) {
+            var newUrl = window.location.pathname + '?item_id=' + currentItemId;
+            window.history.replaceState(null, '', newUrl);
+        }
+        loadItem(currentItemId);
+    }
+}
+
+// ===== ВСПОМОГАТЕЛЬНЫЕ =====
+function callRest(method, params, callback) {
+    var url = CONFIG.webhookUrl + method;
+    
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            if (xhr.status === 0) {
+                callback({ error: 'cors_error', error_description: 'CORS: сервер Б24 не разрешает запросы с этого домена. Добавьте домен в настройки CORS.' });
+                return;
+            }
+            try {
+                var data = JSON.parse(xhr.responseText);
+                callback(data);
+            } catch(e) {
+                callback({ error: 'parse_error', error_description: 'Ошибка разбора ответа: ' + xhr.status });
+            }
+        }
+    };
+    xhr.onerror = function() {
+        callback({ error: 'network_error', error_description: 'Ошибка сети. Проверьте CORS-настройки.' });
+    };
+    xhr.send(JSON.stringify(params));
+}
+
+function showActions() {
+    var actions = document.getElementById('actions');
+    actions.style.display = 'flex';
+    actions.innerHTML = 
+        '<button class="btn" onclick="refresh()">&#128260; Обновить</button>' +
+        '<button class="btn" onclick="showManualInput()">&#128221; Другая заявка</button>';
+}
+
 function refresh() {
-    loadCurrentItem();
+    if (currentItemId) {
+        loadItem(currentItemId);
+    } else {
+        showManualInput();
+    }
 }
 
 function setStatus(text, type) {
@@ -194,16 +269,35 @@ function setStatus(text, type) {
 }
 
 function formatDate(dateStr) {
-    if (!dateStr) return '—';
+    if (!dateStr) return '\u2014';
     var d = new Date(dateStr);
-    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    var day = ('0' + d.getDate()).slice(-2);
+    var month = ('0' + (d.getMonth() + 1)).slice(-2);
+    var year = d.getFullYear();
+    return day + '.' + month + '.' + year;
 }
 
 function escapeHtml(text) {
     var div = document.createElement('div');
-    div.textContent = text;
+    div.textContent = text || '';
     return div.innerHTML;
 }
+
+function getQueryParams() {
+    var params = {};
+    var search = window.location.search.substring(1);
+    if (search) {
+        var pairs = search.split('&');
+        for (var i = 0; i < pairs.length; i++) {
+            var pair = pairs[i].split('=');
+            params[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1] || '');
+        }
+    }
+    return params;
+}
+
+// Запуск
+init();
 </script>
 
 </body>
